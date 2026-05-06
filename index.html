@@ -1,59 +1,182 @@
 <!DOCTYPE html>
-<html lang="ro">
+<html lang="en">
 <head>
-    <title>QuickRent Scooter</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuickRent - Control Panel</title>
     <style>
-        body { font-family: sans-serif; margin: 20px; background: #f4f4f4; }
-        .card { background: white; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        button { background: #28a745; color: white; border: none; padding: 8px 15px; cursor: pointer; border-radius: 4px; }
-        button:disabled { background: #ccc; }
+        :root {
+            --primary: #2ecc71;
+            --dark: #2c3e50;
+            --light: #ecf0f1;
+            --danger: #e74c3c;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: var(--light); color: var(--dark); }
+        header { background: var(--dark); color: white; padding: 1rem 2rem; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
+        
+        .container { max-width: 1000px; margin: 2rem auto; padding: 0 1rem; }
+        
+        /* Sections Styling */
+        .section { background: white; padding: 20px; border-radius: 12px; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        h2 { border-bottom: 2px solid var(--primary); padding-bottom: 8px; margin-top: 0; }
+
+        /* Form Styling */
+        .grid-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        input { padding: 10px; border: 1px solid #ddd; border-radius: 6px; outline: none; }
+        input:focus { border-color: var(--primary); }
+        
+        button { 
+            background: var(--primary); color: white; border: none; padding: 10px 20px; 
+            border-radius: 6px; cursor: pointer; font-weight: bold; transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.8; }
+        button:disabled { background: #bdc3c7; cursor: not-allowed; }
+
+        /* Catalog Grid */
+        #catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+        .scooter-card { 
+            background: #fff; border: 1px solid #eee; padding: 15px; 
+            border-radius: 10px; transition: transform 0.2s; 
+        }
+        .scooter-card:hover { transform: translateY(-5px); }
+        .status-badge { 
+            display: inline-block; padding: 4px 8px; border-radius: 4px; 
+            font-size: 0.8rem; font-weight: bold; margin-bottom: 10px;
+        }
+        .available { background: #dff9fb; color: #130f40; }
+        .rented { background: #fab1a0; color: #d63031; }
     </style>
 </head>
 <body>
-    <h1>Trotinete Disponibile</h1>
-    <div id="catalog">Încărcare catalog...</div>
 
-    <script>
-        const API_URL = "http://localhost:8000/api";
+<header>
+    <h1>QuickRent Scooter Management</h1>
+</header>
 
-        async function loadCatalog() {
-            try {
-                const response = await fetch(`${API_URL}/catalog`);
-                const data = await response.json();
-                const container = document.getElementById('catalog');
-                container.innerHTML = data.map(s => `
-                    <div class="card">
-                        <h3>${s.model} (ID: ${s.id})</h3>
-                        <p>Status: ${s.is_available ? "Disponibil" : "Închiriat"}</p>
-                        <button onclick="rentScooter(${s.id})" ${!s.is_available ? 'disabled' : ''}>
-                            Închiriază
-                        </button>
-                    </div>
-                `).join('');
-            } catch (err) {
-                console.error("Eroare la încărcare:", err);
-            }
+<div class="container">
+    <div class="section">
+        <h2>1. User Registration</h2>
+        <div class="grid-form">
+            <input type="text" id="reg-user" placeholder="Username">
+            <input type="email" id="reg-email" placeholder="Email">
+            <input type="password" id="reg-pass" placeholder="Password">
+        </div>
+        <button onclick="registerUser()">Register New Account</button>
+    </div>
+
+    <div class="section">
+        <h2>2. Fleet Management (Admin)</h2>
+        <div class="grid-form">
+            <input type="text" id="scooter-model" placeholder="Scooter Model (e.g. Xiaomi Pro 2)">
+        </div>
+        <button onclick="addScooter()" style="background: #3498db;">Add Scooter to Fleet</button>
+    </div>
+
+    <div class="section">
+        <h2>3. Live Catalog</h2>
+        <div id="catalog">Loading fleet...</div>
+    </div>
+</div>
+
+<script>
+    const KONG_URL = "http://localhost:8000";
+
+    // --- 1. REGISTER ---
+    async function registerUser() {
+        const user = document.getElementById('reg-user').value;
+        const email = document.getElementById('reg-email').value;
+        const pass = document.getElementById('reg-pass').value;
+
+        if(!user || !email || !pass) return alert("Please fill all fields");
+
+        try {
+            const response = await fetch(`${KONG_URL}/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, email: email, password: pass })
+            });
+            const result = await response.json();
+            alert(result.message || "Registration completed!");
+        } catch (err) {
+            alert("Error connecting to Auth Service");
         }
+    }
 
-        async function rentScooter(id) {
-            const username = prompt("Introdu numele de utilizator:");
-            if (!username) return;
+    // --- 2. ADD SCOOTER ---
+    async function addScooter() {
+        const model = document.getElementById('scooter-model').value;
+        if(!model) return alert("Enter model name");
 
-            const response = await fetch(`${API_URL}/rent`, {
+        try {
+            const response = await fetch(`${KONG_URL}/api/admin/add-scooter`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: model, is_available: true })
+            });
+            if(response.ok) {
+                alert("Scooter added!");
+                loadCatalog();
+            }
+        } catch (err) {
+            alert("Error connecting to Logic Service");
+        }
+    }
+
+    // --- 3. LOAD CATALOG ---
+    async function loadCatalog() {
+        try {
+            const response = await fetch(`${KONG_URL}/api/catalog`);
+            const data = await response.json();
+            const container = document.getElementById('catalog');
+            
+            if (data.length === 0) {
+                container.innerHTML = "<p>No scooters found in the database.</p>";
+                return;
+            }
+
+            container.innerHTML = data.map(s => `
+                <div class="scooter-card">
+                    <div class="status-badge ${s.is_available ? 'available' : 'rented'}">
+                        ${s.is_available ? 'AVAILABLE' : 'RENTED'}
+                    </div>
+                    <h3>${s.model}</h3>
+                    <p style="color: #666; font-size: 0.9rem;">Device ID: #${s.id}</p>
+                    <button onclick="rentScooter(${s.id})" ${!s.is_available ? 'disabled' : ''}>
+                        ${s.is_available ? 'Rent Now' : 'Currently Unavailable'}
+                    </button>
+                </div>
+            `).join('');
+        } catch (err) {
+            document.getElementById('catalog').innerHTML = "Failed to load catalog. Is Kong running?";
+        }
+    }
+
+    // --- 4. RENT ---
+    async function rentScooter(id) {
+        const username = prompt("Enter your username to confirm rental:");
+        if (!username) return;
+
+        try {
+            const response = await fetch(`${KONG_URL}/api/rent`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username: username, scooter_id: id })
             });
 
             if (response.ok) {
-                alert("Închiriere reușită!");
-                loadCatalog(); // Reîncărcăm lista
+                alert("Rental successful! Enjoy your ride.");
+                loadCatalog();
             } else {
-                alert("Eroare la închiriere.");
+                alert("Rental failed. Check if user exists.");
             }
+        } catch (err) {
+            alert("Connection error.");
         }
+    }
 
-        loadCatalog();
-    </script>
+    // Initial Load
+    loadCatalog();
+</script>
+
 </body>
 </html>
