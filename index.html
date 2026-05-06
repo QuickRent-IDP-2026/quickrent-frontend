@@ -153,26 +153,36 @@
 
     // --- 4. RENT ---
     async function rentScooter(id) {
-        const username = prompt("Enter your username to confirm rental:");
-        if (!username) return;
+    const username = prompt("Enter your username to confirm rental:");
+    if (!username) return;
 
-        try {
-            const response = await fetch(`${KONG_URL}/api/rent`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: username, scooter_id: id })
-            });
+    // Ask the user for duration (seconds)
+    const duration = prompt("Rental duration in seconds:", "15");
+    if (!duration) return;
 
-            if (response.ok) {
-                alert("Rental successful! Enjoy your ride.");
-                loadCatalog();
-            } else {
-                alert("Rental failed. Check if user exists.");
-            }
-        } catch (err) {
-            alert("Connection error.");
+    try {
+        const response = await fetch(`${KONG_URL}/api/rent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                username: username, 
+                scooter_id: id,
+                duration: parseInt(duration) // Send duration as integer
+            })
+        });
+
+        if (response.ok) {
+            alert(`Rental started! The scooter will be released in ${duration} seconds.`);
+            loadCatalog();
+        } else {
+            // This will now catch "User not found" errors
+            const errorData = await response.json();
+            alert(`Rental failed: ${errorData.detail}`);
         }
+    } catch (err) {
+        alert("Connection error.");
     }
+}
 
     // Initial Load
     loadCatalog();
