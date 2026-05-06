@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <title>QuickRent Scooter</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #f4f4f4; }
+        .card { background: white; padding: 15px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        button { background: #28a745; color: white; border: none; padding: 8px 15px; cursor: pointer; border-radius: 4px; }
+        button:disabled { background: #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Trotinete Disponibile</h1>
+    <div id="catalog">Încărcare catalog...</div>
+
+    <script>
+        const API_URL = "http://localhost:8000/api";
+
+        async function loadCatalog() {
+            try {
+                const response = await fetch(`${API_URL}/catalog`);
+                const data = await response.json();
+                const container = document.getElementById('catalog');
+                container.innerHTML = data.map(s => `
+                    <div class="card">
+                        <h3>${s.model} (ID: ${s.id})</h3>
+                        <p>Status: ${s.is_available ? "Disponibil" : "Închiriat"}</p>
+                        <button onclick="rentScooter(${s.id})" ${!s.is_available ? 'disabled' : ''}>
+                            Închiriază
+                        </button>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error("Eroare la încărcare:", err);
+            }
+        }
+
+        async function rentScooter(id) {
+            const username = prompt("Introdu numele de utilizator:");
+            if (!username) return;
+
+            const response = await fetch(`${API_URL}/rent`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: username, scooter_id: id })
+            });
+
+            if (response.ok) {
+                alert("Închiriere reușită!");
+                loadCatalog(); // Reîncărcăm lista
+            } else {
+                alert("Eroare la închiriere.");
+            }
+        }
+
+        loadCatalog();
+    </script>
+</body>
+</html>
