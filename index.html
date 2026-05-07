@@ -10,6 +10,7 @@
             --dark: #2c3e50;
             --light: #ecf0f1;
             --danger: #e74c3c;
+            --admin-color: #3498db;
         }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: var(--light); color: var(--dark); }
         header { background: var(--dark); color: white; padding: 1rem 2rem; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.2); }
@@ -19,6 +20,7 @@
         /* Sections Styling */
         .section { background: white; padding: 20px; border-radius: 12px; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
         h2 { border-bottom: 2px solid var(--primary); padding-bottom: 8px; margin-top: 0; }
+        .admin-header { border-bottom-color: var(--admin-color); }
 
         /* Form Styling */
         .grid-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px; }
@@ -31,6 +33,10 @@
         }
         button:hover { opacity: 0.8; }
         button:disabled { background: #bdc3c7; cursor: not-allowed; }
+
+        /* Auth specific styles */
+        #admin-section { display: none; border-left: 5px solid var(--admin-color); }
+        .auth-status { font-size: 0.9rem; margin-bottom: 15px; color: #7f8c8d; }
 
         /* Catalog Grid */
         #catalog { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
@@ -54,6 +60,17 @@
 </header>
 
 <div class="container">
+    
+    <div class="section" id="login-section">
+        <h2>0. Staff Authentication</h2>
+        <p class="auth-status">Admin credentials required to manage the fleet.</p>
+        <div class="grid-form">
+            <input type="text" id="login-user" placeholder="Admin Username">
+            <input type="password" id="login-pass" placeholder="Admin Password">
+        </div>
+        <button onclick="login()" style="background: var(--admin-color);">Login as Admin</button>
+    </div>
+
     <div class="section">
         <h2>1. User Registration</h2>
         <div class="grid-form">
@@ -64,12 +81,15 @@
         <button onclick="registerUser()">Register New Account</button>
     </div>
 
-    <div class="section">
-        <h2>2. Fleet Management (Admin)</h2>
+    <div class="section" id="admin-section">
+        <h2 class="admin-header">2. Fleet Management (Admin Only)</h2>
         <div class="grid-form">
             <input type="text" id="scooter-model" placeholder="Scooter Model (e.g. Xiaomi Pro 2)">
         </div>
-        <button onclick="addScooter()" style="background: #3498db;">Add Scooter to Fleet</button>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="addScooter()" style="background: var(--admin-color);">Add Scooter to Fleet</button>
+            <button onclick="logout()" style="background: var(--danger);">Logout Admin</button>
+        </div>
     </div>
 
     <div class="section">
@@ -80,6 +100,42 @@
 
 <script>
     const KONG_URL = "http://localhost:8000";
+
+    // --- AUTHENTICATION ---
+    async function login() {
+        const user = document.getElementById('login-user').value;
+        const pass = document.getElementById('login-pass').value;
+
+        if(!user || !pass) return alert("Please enter credentials");
+
+        try {
+            const response = await fetch(`${KONG_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, password: pass })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.is_admin) {
+                document.getElementById('admin-section').style.display = 'block';
+                document.getElementById('login-section').style.display = 'none';
+                alert("Access Granted. Welcome, Admin!");
+            } else {
+                alert("Access Denied. Invalid admin credentials.");
+            }
+        } catch (err) {
+            alert("Error connecting to Auth Service via Kong.");
+        }
+    }
+
+    function logout() {
+        document.getElementById('admin-section').style.display = 'none';
+        document.getElementById('login-section').style.display = 'block';
+        document.getElementById('login-user').value = "";
+        document.getElementById('login-pass').value = "";
+        alert("Logged out successfully.");
+    }
 
     // --- 1. REGISTER ---
     async function registerUser() {
@@ -114,7 +170,8 @@
                 body: JSON.stringify({ model: model, is_available: true })
             });
             if(response.ok) {
-                alert("Scooter added!");
+                alert("Scooter added successfully!");
+                document.getElementById('scooter-model').value = "";
                 loadCatalog();
             }
         } catch (err) {
@@ -153,36 +210,34 @@
 
     // --- 4. RENT ---
     async function rentScooter(id) {
-    const username = prompt("Enter your username to confirm rental:");
-    if (!username) return;
+        const username = prompt("Enter your username to confirm rental:");
+        if (!username) return;
 
-    // Ask the user for duration (seconds)
-    const duration = prompt("Rental duration in seconds:", "15");
-    if (!duration) return;
+        const duration = prompt("Rental duration in seconds:", "15");
+        if (!duration) return;
 
-    try {
-        const response = await fetch(`${KONG_URL}/api/rent`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                username: username, 
-                scooter_id: id,
-                duration: parseInt(duration) // Send duration as integer
-            })
-        });
+        try {
+            const response = await fetch(`${KONG_URL}/api/rent`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    username: username, 
+                    scooter_id: id,
+                    duration: parseInt(duration)
+                })
+            });
 
-        if (response.ok) {
-            alert(`Rental started! The scooter will be released in ${duration} seconds.`);
-            loadCatalog();
-        } else {
-            // This will now catch "User not found" errors
-            const errorData = await response.json();
-            alert(`Rental failed: ${errorData.detail}`);
+            if (response.ok) {
+                alert(`Rental successful! The scooter will be released in ${duration} seconds.`);
+                loadCatalog();
+            } else {
+                const errorData = await response.json();
+                alert(`Rental failed: ${errorData.detail}`);
+            }
+        } catch (err) {
+            alert("Connection error.");
         }
-    } catch (err) {
-        alert("Connection error.");
     }
-}
 
     // Initial Load
     loadCatalog();
